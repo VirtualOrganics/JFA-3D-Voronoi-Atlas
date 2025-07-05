@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D JFA with 2D Atlas - Working Implementation</title>
+    
+    <!-- Import Map for ES Modules -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            background: #111111;
+        }
+        canvas { 
+            display: block; 
+        }
+        
+        .toggle-panel-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 255, 255, 0.3);
+            border: 1px solid #00ffff;
+            color: #00ffff;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 5px;
+            z-index: 1001;
+            transition: all 0.3s ease;
+        }
+        
+        .toggle-panel-btn:hover {
+            background: rgba(0, 255, 255, 0.5);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        
+        .info-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+            max-width: 400px;
+            transition: transform 0.3s ease;
+        }
+        
+        .info-panel.hidden {
+            transform: translateX(-120%);
+        }
+        
+        .info-panel h3 {
+            margin: 0 0 10px 0;
+            color: #00ffff;
+            font-size: 18px;
+        }
+        
+        .info-panel p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #ccc;
+        }
+        
+        .highlight {
+            color: #ffff00;
+            font-weight: bold;
+        }
+        
+        .info-panel .highlight.success {
+            color: #00ff00;
+        }
+        
+        .info-panel .highlight.error {
+            color: #ff4444;
+            font-weight: bold;
+        }
+        
+        .info-panel .highlight.warning {
+            color: #ffaa00;
+        }
+        
+        button {
+            background: #00ffff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            width: 100%;
+        }
+        
+        button:hover {
+            background: #00dddd;
+        }
+        
+        .control {
+            margin-top: 10px;
+        }
+        
+        .control label {
+            display: inline-block;
+            width: 150px;
+            font-size: 12px;
+        }
+        
+        .control input[type="range"] {
+            width: 100px;
+        }
+        
+        .control span {
+            color: #ffff00;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="toggle-panel-btn" onclick="togglePanel()">Hide Panel</div>
+    <div class="info-panel" id="controlPanel">
+        <h3>🚀 3D JFA Volume (Atlas Method)</h3>
+        <p>Algorithm: <span class="highlight">3D Jump Flooding Algorithm</span></p>
+        <p>Mode: <span class="highlight">2D Atlas → 3D Volume</span></p>
+        <p>Volume Size: <span class="highlight">64x64x64</span></p>
+        <p>Atlas Size: <span class="highlight">512x512</span></p>
+        <p>Seed Points: <span class="highlight" id="seedCount">25</span></p>
+        <p id="status">Status: <span class="highlight">Initializing...</span></p>
+        
+        <div class="control">
+            <label for="pointInput">Number of Points:</label>
+            <input type="number" id="pointInput" min="1" max="10000" value="25">
+        </div>
+        
+        <div class="control">
+            <label for="opacitySlider">Ray Step Opacity:</label>
+            <input type="range" id="opacitySlider" min="0.01" max="0.1" value="0.02" step="0.01">
+            <span id="opacityValue">0.02</span>
+        </div>
+        
+        <div class="control">
+            <label for="transparencySlider">Overall Transparency:</label>
+            <input type="range" id="transparencySlider" min="0.1" max="1.0" value="1.0" step="0.05">
+            <span id="transparencyValue">1.00</span>
+        </div>
+        
+        <div class="control">
+            <label for="showPoints">Show Seed Points:</label>
+            <input type="checkbox" id="showPoints" checked>
+        </div>
+        
+        <div class="control">
+            <label for="pointSize">Point Size:</label>
+            <input type="range" id="pointSize" min="0.01" max="0.5" value="0.1" step="0.01">
+            <span id="pointSizeValue">0.10</span>
+        </div>
+        
+        <div class="control">
+            <label for="volumeSize">Volume Resolution:</label>
+            <select id="volumeSize">
+                <option value="32">32³</option>
+                <option value="64" selected>64³</option>
+                <option value="128">128³</option>
+                <option value="256">256³ (High VRAM)</option>
+            </select>
+        </div>
+        
+        <div class="control">
+            <label for="edgeSlider">Edge Smoothness:</label>
+            <input type="range" id="edgeSlider" min="0.5" max="5.0" value="1.5" step="0.1">
+            <span id="edgeValue">1.5</span>
+        </div>
+        
+        <div class="control">
+            <label for="colorMode">Cell Color Mode:</label>
+            <select id="colorMode">
+                <option value="random" selected>Random Hue</option>
+                <option value="single">Single Color</option>
+            </select>
+        </div>
+        
+        <div class="control" id="singleColorControl" style="display: none;">
+            <label for="cellColor">Cell Color:</label>
+            <input type="color" id="cellColor" value="#888888">
+        </div>
+        
+        <div class="control">
+            <label for="transparencyMode">Transparency Mode:</label>
+            <select id="transparencyMode">
+                <option value="foggy" selected>Foggy (Current)</option>
+                <option value="glass">Glass (True Transparency)</option>
+            </select>
+        </div>
+        
+        <div class="control">
+            <label for="edgeColor">Edge Color:</label>
+            <input type="color" id="edgeColor" value="#00ffff">
+        </div>
+        
+        <div class="control">
+            <label for="movePoints">Animate Points:</label>
+            <input type="checkbox" id="movePoints">
+        </div>
+        
+        <div class="control" id="moveSpeedControl" style="display: none;">
+            <label for="moveSpeed">Move Speed:</label>
+            <input type="range" id="moveSpeed" min="0.001" max="1.0" value="0.01" step="0.001">
+            <span id="moveSpeedValue">0.010</span>
+        </div>
+        
+        <div class="control">
+            <label for="bgColor">Background Color:</label>
+            <input type="color" id="bgColor" value="#111111">
+        </div>
+        
+        <div class="control">
+            <label for="showLighting">Show Lighting:</label>
+            <input type="checkbox" id="showLighting" checked>
+        </div>
+        
+        <div class="control">
+            <label for="showWireframe">Show Wireframe:</label>
+            <input type="checkbox" id="showWireframe" checked>
+        </div>
+        
+        <div class="control">
+            <label for="sliceAxis">Slice Axis:</label>
+            <select id="sliceAxis">
+                <option value="none" selected>None</option>
+                <option value="x">X-Axis</option>
+                <option value="y">Y-Axis</option>
+                <option value="z">Z-Axis</option>
+            </select>
+        </div>
+        
+        <div class="control" id="slicePosControl" style="display: none;">
+            <label for="slicePos">Slice Position:</label>
+            <input type="range" id="slicePos" min="-1.0" max="1.0" value="0.0" step="0.01">
+        </div>
+        
+        <button onclick="regenerate()">Regenerate Points</button>
+        <button onclick="toggleAnimation()" id="pauseButton">Pause Animation</button>
+    </div>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
+        
+        // Global variables
+        let scene, camera, renderer, controls;
+        let volumeBox, seedPointsMesh;
+        let ambientLight, directionalLight, wireframeBox;
+        let seedPoints = [];
+        let numPoints = 25;
+        let gpuCompute, jfaVariable;
+        let isInitialized = false;
+        let animationId = null;
+        let isPaused = false;
+        
+        // 3D volume parameters - now dynamic
+        let VOLUME_SIZE, ATLAS_SIZE, SLICES_PER_ROW;
+        
+        // Controls
+        const pointInput = document.getElementById('pointInput');
+        const opacitySlider = document.getElementById('opacitySlider');
+        const opacityValue = document.getElementById('opacityValue');
+        const transparencySlider = document.getElementById('transparencySlider');
+        const transparencyValue = document.getElementById('transparencyValue');
+        const showPointsCheckbox = document.getElementById('showPoints');
+        const pointSizeSlider = document.getElementById('pointSize');
+        const pointSizeValue = document.getElementById('pointSizeValue');
+        const volumeSizeSelect = document.getElementById('volumeSize');
+        const edgeSlider = document.getElementById('edgeSlider');
+        const edgeValue = document.getElementById('edgeValue');
+        const colorModeSelect = document.getElementById('colorMode');
+        const cellColorPicker = document.getElementById('cellColor');
+        const singleColorControl = document.getElementById('singleColorControl');
+        const transparencyModeSelect = document.getElementById('transparencyMode');
+        const edgeColorPicker = document.getElementById('edgeColor');
+        const movePointsCheckbox = document.getElementById('movePoints');
+        const moveSpeedSlider = document.getElementById('moveSpeed');
+        const moveSpeedControl = document.getElementById('moveSpeedControl');
+        const moveSpeedValue = document.getElementById('moveSpeedValue');
+        const bgColorPicker = document.getElementById('bgColor');
+        const showLightingCheckbox = document.getElementById('showLighting');
+        const showWireframeCheckbox = document.getElementById('showWireframe');
+        const sliceAxisSelect = document.getElementById('sliceAxis');
+        const slicePosSlider = document.getElementById('slicePos');
+        const slicePosControl = document.getElementById('slicePosControl');
+        
+        // Animation variables
+        let pointVelocities = [];
+        
+        function updateVolumeParameters() {
+            VOLUME_SIZE = parseInt(volumeSizeSelect.value);
+            SLICES_PER_ROW = Math.ceil(Math.sqrt(VOLUME_SIZE));
+            ATLAS_SIZE = VOLUME_SIZE * SLICES_PER_ROW;
+            
+            // Update the info panel display
+            document.querySelector('.info-panel p:nth-child(4) .highlight').textContent = `${VOLUME_SIZE}x${VOLUME_SIZE}x${VOLUME_SIZE}`;
+            document.querySelector('.info-panel p:nth-child(5) .highlight').textContent = `${ATLAS_SIZE}x${ATLAS_SIZE}`;
+        }
+        
+        pointInput.addEventListener('change', function() {
+            if (!isInitialized) return;
+            numPoints = Math.min(Math.max(parseInt(this.value) || 1, 1), 10000);
+            this.value = numPoints;
+            document.getElementById('seedCount').textContent = numPoints;
+        });
+        
+        opacitySlider.addEventListener('input', function() {
+            if (!isInitialized) return;
+            const opacity = parseFloat(this.value);
+            opacityValue.textContent = opacity.toFixed(2);
+            if (volumeBox) {
+                volumeBox.material.uniforms.uStepOpacity.value = opacity;
+            }
+        });
+        
+        transparencySlider.addEventListener('input', function() {
+            if (!isInitialized) return;
+            const transparency = parseFloat(this.value);
+            transparencyValue.textContent = transparency.toFixed(2);
+            if (volumeBox) {
+                volumeBox.material.uniforms.uTransparency.value = transparency;
+            }
+        });
+        
+        showPointsCheckbox.addEventListener('change', function() {
+            if (!isInitialized) return;
+            if (seedPointsMesh) {
+                seedPointsMesh.visible = this.checked;
+            }
+        });
+        
+        pointSizeSlider.addEventListener('input', function() {
+            if (!isInitialized) return;
+            const size = parseFloat(this.value);
+            pointSizeValue.textContent = size.toFixed(2);
+            if (seedPointsMesh) {
+                seedPointsMesh.material.size = size;
+            }
+        });
+        
+        volumeSizeSelect.addEventListener('change', function() {
+            if (!isInitialized) return;
+            // This is a major change, so we must re-initialize everything
+            regenerate();
+        });
+        
+        edgeSlider.addEventListener('input', function() {
+            if (!isInitialized) return;
+            const smoothness = parseFloat(this.value);
+            edgeValue.textContent = smoothness.toFixed(1);
+            if (volumeBox) {
+                volumeBox.material.uniforms.uEdgeSmoothness.value = smoothness;
+            }
+        });
+        
+        colorModeSelect.addEventListener('change', function() {
+            if (!isInitialized) return;
+            const mode = this.value;
+            singleColorControl.style.display = mode === 'single' ? 'block' : 'none';
+            if (volumeBox) {
+                volumeBox.material.uniforms.uColorMode.value = mode === 'random' ? 0.0 : 1.0;
+            }
+        });
+        
+        cellColorPicker.addEventListener('input', function() {
+            if (!isInitialized || !volumeBox) return;
+            const color = new THREE.Color(this.value);
+            volumeBox.material.uniforms.uCellColor.value = color;
+        });
+        
+        transparencyModeSelect.addEventListener('change', function() {
+            if (!isInitialized || !volumeBox) return;
+            volumeBox.material.uniforms.uTransparencyMode.value = this.value === 'glass' ? 1.0 : 0.0;
+        });
+        
+        edgeColorPicker.addEventListener('input', function() {
+            if (!isInitialized) return;
+            const color = new THREE.Color(this.value);
+            if (volumeBox) {
+                volumeBox.material.uniforms.uEdgeColor.value = color;
+            }
+            if (wireframeBox) {
+                wireframeBox.material.color = color;
+            }
+        });
+        
+        movePointsCheckbox.addEventListener('change', function() {
+            moveSpeedControl.style.display = this.checked ? 'block' : 'none';
+            if (this.checked && pointVelocities.length === 0) {
+                initializePointVelocities();
+            }
+        });
+        
+        moveSpeedSlider.addEventListener('input', function() {
+            const speed = parseFloat(this.value);
+            moveSpeedValue.textContent = speed.toFixed(3);
+        });
+        
+        bgColorPicker.addEventListener('input', function() {
+            if (!scene) return;
+            scene.background = new THREE.Color(this.value);
+        });
+        
+        showLightingCheckbox.addEventListener('change', function() {
+            if (!scene) return;
+            if (this.checked) {
+                if (ambientLight) scene.add(ambientLight);
+                if (directionalLight) scene.add(directionalLight);
+            } else {
+                if (ambientLight) scene.remove(ambientLight);
+                if (directionalLight) scene.remove(directionalLight);
+            }
+        });
+        
+        showWireframeCheckbox.addEventListener('change', function() {
+            if (!wireframeBox) return;
+            wireframeBox.visible = this.checked;
+        });
+        
+        sliceAxisSelect.addEventListener('change', function() {
+            if (!isInitialized || !volumeBox) return;
+            const axis = this.value;
+            slicePosControl.style.display = axis !== 'none' ? 'block' : 'none';
+            volumeBox.material.uniforms.uSliceAxis.value = 
+                axis === 'none' ? 0 : axis === 'x' ? 1 : axis === 'y' ? 2 : 3;
+        });
+        
+        slicePosSlider.addEventListener('input', function() {
+            if (!isInitialized || !volumeBox) return;
+            volumeBox.material.uniforms.uSlicePosition.value = parseFloat(this.value);
+        });
+        
+        function updateStatus(message, type = '') {
+            const statusEl = document.querySelector('#status .highlight');
+            statusEl.textContent = message;
+            statusEl.className = 'highlight ' + type;
+            console.log('Status:', message);
+        }
+        
+        // JFA Shader for 2D Atlas storing 3D data
+        const jfaShaderCode = `
+            uniform float uStepSize;
+            uniform float uVolumeSize;
+            uniform float uSlicesPerRow;
+            
+            // Convert 3D coordinates to 2D atlas UV
+            vec2 volumeToAtlas(vec3 pos) {
+                float slice = floor(pos.z * uVolumeSize);
+                float sliceX = mod(slice, uSlicesPerRow);
+                float sliceY = floor(slice / uSlicesPerRow);
+                
+                vec2 atlasPos = vec2(
+                    (sliceX + pos.x) / uSlicesPerRow,
+                    (sliceY + pos.y) / uSlicesPerRow
+                );
+                return atlasPos;
+            }
+            
+            // Convert 2D atlas UV to 3D coordinates
+            vec3 atlasToVolume(vec2 uv) {
+                vec2 scaledUV = uv * uSlicesPerRow;
+                float sliceX = floor(scaledUV.x);
+                float sliceY = floor(scaledUV.y);
+                float slice = sliceY * uSlicesPerRow + sliceX;
+                
+                vec2 inSliceUV = fract(scaledUV);
+                return vec3(inSliceUV.x, inSliceUV.y, slice / uVolumeSize);
+            }
+            
+            vec4 sampleVolume(sampler2D tex, vec3 pos) {
+                if (any(lessThan(pos, vec3(0.0))) || any(greaterThan(pos, vec3(1.0)))) {
+                    return vec4(0.0);
+                }
+                return texture2D(tex, volumeToAtlas(pos));
+            }
+            
+            void main() {
+                vec2 uv = gl_FragCoord.xy / resolution.xy;
+                vec3 volumePos = atlasToVolume(uv);
+                vec4 current = texture2D(textureJFA, uv);
+                
+                // Only process voxels that are inside our volume
+                if (volumePos.z > 1.0) {
+                    gl_FragColor = vec4(0.0);
+                    return;
+                }
+                
+                vec3 step3D = vec3(uStepSize) / uVolumeSize;
+                
+                // Check 26 neighbors in 3D
+                for (int z = -1; z <= 1; z++) {
+                    for (int y = -1; y <= 1; y++) {
+                        for (int x = -1; x <= 1; x++) {
+                            if (x == 0 && y == 0 && z == 0) continue;
+                            
+                            vec3 neighborPos = volumePos + vec3(x, y, z) * step3D;
+                            vec4 neighbor = sampleVolume(textureJFA, neighborPos);
+                            
+                            // If neighbor has no seed, skip
+                            if (neighbor.w < 0.5) continue;
+                            
+                            // If we have no seed, take neighbor's
+                            if (current.w < 0.5) {
+                                current = neighbor;
+                                continue;
+                            }
+                            
+                            // Compare 3D distances
+                            float distToCurrent = distance(current.xyz, volumePos);
+                            float distToNeighbor = distance(neighbor.xyz, volumePos);
+                            
+                            if (distToNeighbor < distToCurrent) {
+                                current = neighbor;
+                            }
+                        }
+                    }
+                }
+                
+                gl_FragColor = current;
+            }
+        `;
+        
+        // Volume ray marching shaders
+        const volumeVertexShader = `
+            varying vec3 vPosition;
+            varying vec3 vDirection;
+            
+            void main() {
+                vPosition = position;
+                vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                vDirection = normalize(worldPos.xyz - cameraPosition);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
+        
+        const volumeFragmentShader = `
+            uniform sampler2D uAtlas;
+            uniform float uStepOpacity;
+            uniform float uEdgeSmoothness;
+            uniform vec3 uBoxMin;
+            uniform vec3 uBoxMax;
+            uniform float uVolumeSize;
+            uniform float uSlicesPerRow;
+            uniform float uColorMode;
+            uniform vec3 uCellColor;
+            uniform int uSliceAxis;
+            uniform float uSlicePosition;
+            uniform float uTransparency;
+            uniform float uTransparencyMode;
+            uniform vec3 uEdgeColor;
+            
+            varying vec3 vPosition;
+            varying vec3 vDirection;
+            
+            // Convert 3D coordinates to 2D atlas UV
+            vec2 volumeToAtlas(vec3 pos) {
+                float slice = floor(pos.z * uVolumeSize);
+                float sliceX = mod(slice, uSlicesPerRow);
+                float sliceY = floor(slice / uSlicesPerRow);
+                
+                vec2 atlasPos = vec2(
+                    (sliceX + pos.x) / uSlicesPerRow,
+                    (sliceY + pos.y) / uSlicesPerRow
+                );
+                return atlasPos;
+            }
+            
+            vec4 sampleVolume(vec3 pos) {
+                if (any(lessThan(pos, vec3(0.0))) || any(greaterThan(pos, vec3(1.0)))) {
+                    return vec4(0.0);
+                }
+                return texture2D(uAtlas, volumeToAtlas(pos));
+            }
+            
+            vec2 intersectBox(vec3 origin, vec3 direction, vec3 boxMin, vec3 boxMax) {
+                vec3 invDir = 1.0 / direction;
+                vec3 tMin = (boxMin - origin) * invDir;
+                vec3 tMax = (boxMax - origin) * invDir;
+                vec3 t1 = min(tMin, tMax);
+                vec3 t2 = max(tMin, tMax);
+                float tNear = max(max(t1.x, t1.y), t1.z);
+                float tFar = min(min(t2.x, t2.y), t2.z);
+                return vec2(tNear, tFar);
+            }
+            
+            vec3 hsv2rgb(vec3 c) {
+                vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+                vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+                return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+            }
+            
+            void main() {
+                vec3 rayOrigin = cameraPosition;
+                vec3 rayDir = normalize(vDirection);
+                vec2 t = intersectBox(rayOrigin, rayDir, uBoxMin, uBoxMax);
+                
+                if (t.x > t.y || t.y < 0.0) discard;
+                
+                float stepSize = 0.01;
+                int maxSteps = 200;
+                vec3 currentPos = rayOrigin + rayDir * max(t.x, 0.0);
+                vec4 accumulatedColor = vec4(0.0);
+                
+                vec3 pixelSize = 1.0 / vec3(uVolumeSize);
+                
+                for (int i = 0; i < maxSteps; i++) {
+                    vec3 uvw = (currentPos - uBoxMin) / (uBoxMax - uBoxMin);
+                    if (any(lessThan(uvw, vec3(0.0))) || any(greaterThan(uvw, vec3(1.0)))) break;
+                    
+                    vec4 data = sampleVolume(uvw);
+                    
+                    if (data.w < 0.5) {
+                        currentPos += rayDir * stepSize;
+                        continue;
+                    }
+                    
+                    // Sample neighbors for edge detection
+                    vec4 neighborX = sampleVolume(uvw + vec3(pixelSize.x, 0.0, 0.0));
+                    vec4 neighborY = sampleVolume(uvw + vec3(0.0, pixelSize.y, 0.0));
+                    vec4 neighborZ = sampleVolume(uvw + vec3(0.0, 0.0, pixelSize.z));
+                    
+                    // Calculate the maximum difference between this voxel's ID and its neighbors'
+                    float max_diff = 0.0;
+                    if (neighborX.w > 0.5) max_diff = max(max_diff, abs(data.w - neighborX.w));
+                    if (neighborY.w > 0.5) max_diff = max(max_diff, abs(data.w - neighborY.w));
+                    if (neighborZ.w > 0.5) max_diff = max(max_diff, abs(data.w - neighborZ.w));
+                    
+                    // Use smoothstep to create a soft edge
+                    // The edgeFactor will be 0.0 in the cell interior and smoothly go to 1.0 at the boundary
+                    float edgeFactor = smoothstep(0.0, 0.01 * uEdgeSmoothness, max_diff);
+                    
+                    vec3 cellColor;
+                    if (uColorMode < 0.5) {
+                        float hue = fract(data.w * 0.618033988749895);
+                        cellColor = hsv2rgb(vec3(hue, 0.7, 0.8));
+                    } else {
+                        cellColor = uCellColor;
+                    }
+                    
+                    // Mix between cell color and edge color based on the edgeFactor
+                    vec3 finalColor = mix(cellColor, uEdgeColor, edgeFactor);
+                    float opacity = (edgeFactor > 0.01) ? uStepOpacity * 5.0 : uStepOpacity;
+                    
+                    // Different blending modes based on transparency mode
+                    if (uTransparencyMode > 0.5) {
+                        // Glass mode - proper alpha blending
+                        float alpha = opacity * uTransparency;
+                        if (edgeFactor > 0.01) alpha = min(alpha * 5.0, 1.0); // Make edges more opaque
+                        
+                        // Front-to-back compositing
+                        float a = alpha * (1.0 - accumulatedColor.a);
+                        accumulatedColor.rgb += finalColor * a;
+                        accumulatedColor.a += a;
+                        
+                        // Continue through the entire volume for glass mode
+                        if (accumulatedColor.a > 0.99) break;
+                    } else {
+                        // Foggy mode - original accumulation
+                        accumulatedColor.rgb += finalColor * opacity;
+                        accumulatedColor.a += opacity;
+                        
+                        if (accumulatedColor.a > 0.95) break;
+                    }
+                    
+                    currentPos += rayDir * stepSize;
+                }
+                
+                // Apply slicing
+                if (uSliceAxis == 1 && vPosition.x > uSlicePosition) discard;
+                if (uSliceAxis == 2 && vPosition.y > uSlicePosition) discard;
+                if (uSliceAxis == 3 && vPosition.z > uSlicePosition) discard;
+                
+                gl_FragColor = vec4(accumulatedColor.rgb, min(accumulatedColor.a, 1.0) * uTransparency);
+            }
+        `;
+        
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111111);
+            
+            camera = new THREE.PerspectiveCamera(
+                75, 
+                window.innerWidth / window.innerHeight, 
+                0.1, 
+                100
+            );
+            camera.position.set(2, 2, 2);
+            camera.lookAt(0, 0, 0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+            scene.add(ambientLight);
+            
+            directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+            
+            updateStatus('Three.js initialized');
+        }
+        
+        function generateSeedPoints() {
+            seedPoints = [];
+            pointVelocities = [];
+            
+            for (let i = 0; i < numPoints; i++) {
+                seedPoints.push(new THREE.Vector3(
+                    Math.random() * 2 - 1,
+                    Math.random() * 2 - 1,
+                    Math.random() * 2 - 1
+                ));
+            }
+            
+            updateSeedPointsVisualization();
+        }
+        
+        function initializePointVelocities() {
+            pointVelocities = [];
+            for (let i = 0; i < seedPoints.length; i++) {
+                pointVelocities.push(new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.02,
+                    (Math.random() - 0.5) * 0.02,
+                    (Math.random() - 0.5) * 0.02
+                ));
+            }
+        }
+        
+        function animatePoints() {
+            const speed = parseFloat(moveSpeedSlider.value);
+            
+            for (let i = 0; i < seedPoints.length; i++) {
+                const point = seedPoints[i];
+                const velocity = pointVelocities[i];
+                
+                // Update position
+                point.x += velocity.x * speed;
+                point.y += velocity.y * speed;
+                point.z += velocity.z * speed;
+                
+                // Bounce off walls
+                if (point.x > 0.9 || point.x < -0.9) {
+                    velocity.x *= -1;
+                    point.x = Math.max(-0.9, Math.min(0.9, point.x));
+                }
+                if (point.y > 0.9 || point.y < -0.9) {
+                    velocity.y *= -1;
+                    point.y = Math.max(-0.9, Math.min(0.9, point.y));
+                }
+                if (point.z > 0.9 || point.z < -0.9) {
+                    velocity.z *= -1;
+                    point.z = Math.max(-0.9, Math.min(0.9, point.z));
+                }
+                
+                // Add some randomness
+                velocity.x += (Math.random() - 0.5) * 0.001;
+                velocity.y += (Math.random() - 0.5) * 0.001;
+                velocity.z += (Math.random() - 0.5) * 0.001;
+                
+                // Limit velocity
+                const mag = velocity.length();
+                if (mag > 0.05) {
+                    velocity.multiplyScalar(0.05 / mag);
+                }
+            }
+            
+            updateSeedPointsVisualization();
+            if (initGPUCompute()) {
+                runJFA();
+            }
+        }
+        
+        function updateSeedPointsVisualization() {
+            if (seedPointsMesh) {
+                scene.remove(seedPointsMesh);
+                seedPointsMesh.geometry.dispose();
+                seedPointsMesh.material.dispose();
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+            
+            seedPoints.forEach((point, i) => {
+                positions.push(point.x, point.y, point.z);
+                const hue = i / numPoints;
+                const color = new THREE.Color().setHSL(hue, 0.8, 0.5);
+                colors.push(color.r, color.g, color.b);
+            });
+            
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            
+            const material = new THREE.PointsMaterial({
+                size: parseFloat(pointSizeSlider.value),
+                vertexColors: true,
+                sizeAttenuation: true
+            });
+            
+            seedPointsMesh = new THREE.Points(geometry, material);
+            seedPointsMesh.visible = showPointsCheckbox.checked;
+            scene.add(seedPointsMesh);
+        }
+        
+        function createVolumeBox() {
+            if (volumeBox) {
+                scene.remove(volumeBox);
+                volumeBox.geometry.dispose();
+                volumeBox.material.dispose();
+            }
+            
+            if (wireframeBox) {
+                scene.remove(wireframeBox);
+                wireframeBox.geometry.dispose();
+                wireframeBox.material.dispose();
+            }
+            
+            const geometry = new THREE.BoxGeometry(2, 2, 2);
+            
+            const material = new THREE.ShaderMaterial({
+                vertexShader: volumeVertexShader,
+                fragmentShader: volumeFragmentShader,
+                uniforms: {
+                    uAtlas: { value: null },
+                    uStepOpacity: { value: parseFloat(opacitySlider.value) },
+                    uEdgeSmoothness: { value: parseFloat(edgeSlider.value) },
+                    uBoxMin: { value: new THREE.Vector3(-1, -1, -1) },
+                    uBoxMax: { value: new THREE.Vector3(1, 1, 1) },
+                    uVolumeSize: { value: VOLUME_SIZE },
+                    uSlicesPerRow: { value: SLICES_PER_ROW },
+                    uColorMode: { value: 0.0 },
+                    uCellColor: { value: new THREE.Color(0x888888) },
+                    uSliceAxis: { value: 0 },
+                    uSlicePosition: { value: 0.0 },
+                    uTransparency: { value: parseFloat(transparencySlider.value) },
+                    uTransparencyMode: { value: 0.0 },
+                    uEdgeColor: { value: new THREE.Color(0x00ffff) }
+                },
+                transparent: true,
+                side: THREE.BackSide
+            });
+            
+            volumeBox = new THREE.Mesh(geometry, material);
+            scene.add(volumeBox);
+            
+            // Wireframe box
+            const wireframeGeometry = new THREE.BoxGeometry(2, 2, 2);
+            const wireframeMaterial = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(edgeColorPicker.value),
+                wireframe: true,
+                opacity: 0.3,
+                transparent: true
+            });
+            wireframeBox = new THREE.Mesh(wireframeGeometry, wireframeMaterial);
+            wireframeBox.visible = showWireframeCheckbox.checked;
+            scene.add(wireframeBox);
+        }
+        
+        function initGPUCompute() {
+            updateStatus('Initializing GPU compute...');
+            
+            // Clean up any existing GPU compute resources
+            if (gpuCompute) {
+                if (jfaVariable && jfaVariable.renderTargets) {
+                    jfaVariable.renderTargets.forEach(rt => {
+                        if (rt && rt.texture) rt.texture.dispose();
+                        if (rt) rt.dispose();
+                    });
+                }
+                gpuCompute = null;
+                jfaVariable = null;
+            }
+            
+            gpuCompute = new GPUComputationRenderer(ATLAS_SIZE, ATLAS_SIZE, renderer);
+            
+            const initialTexture = gpuCompute.createTexture();
+            const data = initialTexture.image.data;
+            
+            // Clear all data
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = 0.0;
+                data[i + 1] = 0.0;
+                data[i + 2] = 0.0;
+                data[i + 3] = 0.0;
+            }
+            
+            // Plant seeds in the atlas
+            for (let i = 0; i < seedPoints.length; i++) {
+                const p = seedPoints[i];
+                const volumePos = new THREE.Vector3(
+                    (p.x + 1) * 0.5,
+                    (p.y + 1) * 0.5,
+                    (p.z + 1) * 0.5
+                );
+                
+                // Convert 3D position to atlas coordinates
+                const z = Math.floor(volumePos.z * VOLUME_SIZE);
+                const sliceX = z % SLICES_PER_ROW;
+                const sliceY = Math.floor(z / SLICES_PER_ROW);
+                
+                const atlasX = Math.floor((sliceX + volumePos.x) * VOLUME_SIZE);
+                const atlasY = Math.floor((sliceY + volumePos.y) * VOLUME_SIZE);
+                
+                if (atlasX >= 0 && atlasX < ATLAS_SIZE && atlasY >= 0 && atlasY < ATLAS_SIZE) {
+                    const index = (atlasY * ATLAS_SIZE + atlasX) * 4;
+                    data[index] = volumePos.x;
+                    data[index + 1] = volumePos.y;
+                    data[index + 2] = volumePos.z;
+                    data[index + 3] = (i + 1) / numPoints;
+                }
+            }
+            
+            jfaVariable = gpuCompute.addVariable('textureJFA', jfaShaderCode, initialTexture);
+            gpuCompute.setVariableDependencies(jfaVariable, [jfaVariable]);
+            
+            // Set uniforms
+            jfaVariable.material.uniforms['uStepSize'] = { value: 0.0 };
+            jfaVariable.material.uniforms['uVolumeSize'] = { value: VOLUME_SIZE };
+            jfaVariable.material.uniforms['uSlicesPerRow'] = { value: SLICES_PER_ROW };
+            
+            const error = gpuCompute.init();
+            if (error !== null) {
+                console.error('GPU init failed:', error);
+                return false;
+            }
+            
+            updateStatus('GPU compute ready.', 'success');
+            return true;
+        }
+        
+        function runJFA() {
+            updateStatus('Running 3D JFA passes...');
+            
+            const numPasses = Math.ceil(Math.log2(VOLUME_SIZE));
+            let stepSize = Math.pow(2, numPasses - 1);
+            
+            for (let i = 0; i < numPasses; i++) {
+                jfaVariable.material.uniforms.uStepSize.value = stepSize;
+                gpuCompute.compute();
+                stepSize /= 2;
+            }
+            
+            volumeBox.material.uniforms.uAtlas.value = gpuCompute.getCurrentRenderTarget(jfaVariable).texture;
+            
+            updateStatus('JFA Complete!', 'success');
+        }
+        
+        window.regenerate = function() {
+            if (!isInitialized) {
+                console.warn("Not initialized yet");
+                return;
+            }
+            
+            updateStatus('Cleaning up resources...');
+            
+            // Stop animation first
+            movePointsCheckbox.checked = false;
+            moveSpeedControl.style.display = 'none';
+            
+            // Clean up GPU compute resources
+            if (gpuCompute) {
+                // Dispose of all render targets
+                if (jfaVariable && jfaVariable.renderTargets) {
+                    jfaVariable.renderTargets.forEach(rt => {
+                        if (rt && rt.texture) rt.texture.dispose();
+                        if (rt) rt.dispose();
+                    });
+                }
+                
+                // Dispose of the current render target
+                const currentRT = gpuCompute.getCurrentRenderTarget(jfaVariable);
+                if (currentRT) {
+                    if (currentRT.texture) currentRT.texture.dispose();
+                    currentRT.dispose();
+                }
+                
+                // Clear variables
+                gpuCompute.variables = [];
+                gpuCompute = null;
+                jfaVariable = null;
+            }
+            
+            // Give the browser a moment to clean up
+            setTimeout(() => {
+                try {
+                    updateStatus('Regenerating...');
+                    numPoints = parseInt(pointInput.value) || 25;
+                    updateVolumeParameters();
+                    generateSeedPoints();
+                    createVolumeBox();
+                    
+                    if (initGPUCompute()) {
+                        runJFA();
+                        updateStatus('Ready!', 'success');
+                    } else {
+                        updateStatus('GPU initialization failed!', 'error');
+                    }
+                } catch (error) {
+                    console.error('Regeneration error:', error);
+                    updateStatus('Error during regeneration! Please refresh the page.', 'error');
+                }
+            }, 100);
+        }
+        
+        function animate() {
+            if (!isPaused) {
+                animationId = requestAnimationFrame(animate);
+                
+                if (movePointsCheckbox.checked && isInitialized) {
+                    animatePoints();
+                }
+                
+                controls.update();
+                renderer.render(scene, camera);
+            }
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function init() {
+            updateStatus('Starting initialization...');
+            
+            numPoints = parseInt(pointInput.value) || 25;
+            updateVolumeParameters();
+            initThreeJS();
+            generateSeedPoints();
+            createVolumeBox();
+            
+            if (initGPUCompute()) {
+                runJFA();
+            }
+            
+            window.addEventListener('resize', onWindowResize);
+            
+            animate();
+            
+            updateStatus('✓ Ready! 3D Voronoi Volume', 'success');
+            isInitialized = true;
+        }
+        
+        window.toggleAnimation = function() {
+            isPaused = !isPaused;
+            const button = document.getElementById('pauseButton');
+            
+            if (isPaused) {
+                button.textContent = 'Resume Animation';
+                updateStatus('Animation paused', 'warning');
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+            } else {
+                button.textContent = 'Pause Animation';
+                updateStatus('Animation resumed', 'success');
+                animate();
+            }
+        }
+        
+        window.togglePanel = function() {
+            const panel = document.getElementById('controlPanel');
+            const button = document.querySelector('.toggle-panel-btn');
+            
+            if (panel.classList.contains('hidden')) {
+                panel.classList.remove('hidden');
+                button.textContent = 'Hide Panel';
+            } else {
+                panel.classList.add('hidden');
+                button.textContent = 'Show Panel';
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html> 
