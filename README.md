@@ -8,7 +8,18 @@ An interactive WebGL visualization of 3D Voronoi diagrams using the Jump Floodin
 
 ## 🚀 Live Demo
 
-[View Live Demo](https://your-username.github.io/3d-jfa-voronoi/)
+[View Live Demo](https://virtualorganics.github.io/JFA-3D-Voronoi-Atlas/)
+
+## 📸 Screenshots
+
+![3D Voronoi Cells](screenshots/JFA1.png)
+*Beautiful 3D Voronoi cells with customizable colors and edge detection*
+
+![Glass Transparency Mode](screenshots/JFA2.png)
+*Glass transparency mode showing internal cell structure*
+
+![Single Color Mode](screenshots/JFA3.png)
+*Single color mode with cyan edges creating a unified aesthetic*
 
 ## 📋 Features
 

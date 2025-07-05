@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# GitHub repository setup instructions for 3D JFA Voronoi
+
+echo "=== 3D JFA Voronoi - GitHub Repository Setup ==="
+echo ""
+echo "1. Go to https://github.com/new"
+echo "2. Create a new repository named: 3d-jfa-voronoi"
+echo "3. Make it public and do NOT initialize with README/license/gitignore"
+echo "4. After creating, run these commands:"
+echo ""
+echo "git remote add origin https://github.com/YOUR_USERNAME/3d-jfa-voronoi.git"
+echo "git branch -M main"
+echo "git push -u origin main"
+echo ""
+echo "5. To enable GitHub Pages:"
+echo "   - Go to Settings > Pages"
+echo "   - Source: Deploy from a branch"
+echo "   - Branch: main"
+echo "   - Folder: / (root)"
+echo "   - Save"
+echo ""
+echo "Your site will be available at:"
+echo "https://YOUR_USERNAME.github.io/3d-jfa-voronoi/"
+echo ""
+echo "Replace YOUR_USERNAME with your actual GitHub username!" 
