@@ -136,9 +136,6 @@
     <div class="toggle-panel-btn" onclick="togglePanel()">Hide Panel</div>
     <div class="info-panel" id="controlPanel">
         <h3>🚀 3D JFA Volume (Atlas Method)</h3>
-        <p>Volume Size: <span class="highlight">64x64x64</span></p>
-        <p>Atlas Size: <span class="highlight">512x512</span></p>
-        <p>Seed Points: <span class="highlight" id="seedCount">25</span></p>
         <p id="status">Status: <span class="highlight">Initializing...</span></p>
         
         <div class="control">
@@ -340,17 +337,12 @@
             VOLUME_SIZE = parseInt(volumeSizeSelect.value);
             SLICES_PER_ROW = Math.ceil(Math.sqrt(VOLUME_SIZE));
             ATLAS_SIZE = VOLUME_SIZE * SLICES_PER_ROW;
-            
-            // Update the info panel display
-            document.querySelector('.info-panel p:nth-child(4) .highlight').textContent = `${VOLUME_SIZE}x${VOLUME_SIZE}x${VOLUME_SIZE}`;
-            document.querySelector('.info-panel p:nth-child(5) .highlight').textContent = `${ATLAS_SIZE}x${ATLAS_SIZE}`;
         }
         
         pointInput.addEventListener('change', function() {
             if (!isInitialized) return;
             numPoints = Math.min(Math.max(parseInt(this.value) || 1, 1), 10000);
             this.value = numPoints;
-            document.getElementById('seedCount').textContent = numPoints;
         });
         
         opacitySlider.addEventListener('input', function() {
