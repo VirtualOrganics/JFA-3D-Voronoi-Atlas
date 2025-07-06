@@ -214,6 +214,18 @@
         </div>
         
         <div class="control">
+            <label for="edgeTransparency">Edge Transparency:</label>
+            <input type="range" id="edgeTransparency" min="0.0" max="1.0" value="1.0" step="0.05">
+            <span id="edgeTransparencyValue">1.00</span>
+        </div>
+        
+        <div class="control">
+            <label for="cellTransparency">Cell Transparency:</label>
+            <input type="range" id="cellTransparency" min="0.0" max="1.0" value="1.0" step="0.05">
+            <span id="cellTransparencyValue">1.00</span>
+        </div>
+        
+        <div class="control">
             <label for="movePoints">Animate Points:</label>
             <input type="checkbox" id="movePoints">
         </div>
@@ -294,6 +306,10 @@
         const singleColorControl = document.getElementById('singleColorControl');
         const transparencyModeSelect = document.getElementById('transparencyMode');
         const edgeColorPicker = document.getElementById('edgeColor');
+        const edgeTransparencySlider = document.getElementById('edgeTransparency');
+        const edgeTransparencyValue = document.getElementById('edgeTransparencyValue');
+        const cellTransparencySlider = document.getElementById('cellTransparency');
+        const cellTransparencyValue = document.getElementById('cellTransparencyValue');
         const movePointsCheckbox = document.getElementById('movePoints');
         const moveSpeedSlider = document.getElementById('moveSpeed');
         const moveSpeedControl = document.getElementById('moveSpeedControl');
@@ -402,6 +418,24 @@
             }
             if (wireframeBox) {
                 wireframeBox.material.color = color;
+            }
+        });
+        
+        edgeTransparencySlider.addEventListener('input', function() {
+            if (!isInitialized || !volumeBox) return;
+            const transparency = parseFloat(this.value);
+            edgeTransparencyValue.textContent = transparency.toFixed(2);
+            if (volumeBox) {
+                volumeBox.material.uniforms.uEdgeTransparency.value = transparency;
+            }
+        });
+        
+        cellTransparencySlider.addEventListener('input', function() {
+            if (!isInitialized || !volumeBox) return;
+            const transparency = parseFloat(this.value);
+            cellTransparencyValue.textContent = transparency.toFixed(2);
+            if (volumeBox) {
+                volumeBox.material.uniforms.uCellTransparency.value = transparency;
             }
         });
         
@@ -569,6 +603,8 @@
             uniform float uTransparency;
             uniform float uTransparencyMode;
             uniform vec3 uEdgeColor;
+            uniform float uEdgeTransparency;
+            uniform float uCellTransparency;
             
             varying vec3 vPosition;
             varying vec3 vDirection;
@@ -662,10 +698,13 @@
                     vec3 finalColor = mix(cellColor, uEdgeColor, edgeFactor);
                     float opacity = (edgeFactor > 0.01) ? uStepOpacity * 5.0 : uStepOpacity;
                     
+                    // Apply separate transparency for edges and cells
+                    float transparencyFactor = mix(uCellTransparency, uEdgeTransparency, edgeFactor);
+                    
                     // Different blending modes based on transparency mode
                     if (uTransparencyMode > 0.5) {
                         // Glass mode - proper alpha blending
-                        float alpha = opacity * uTransparency;
+                        float alpha = opacity * uTransparency * transparencyFactor;
                         if (edgeFactor > 0.01) alpha = min(alpha * 5.0, 1.0); // Make edges more opaque
                         
                         // Front-to-back compositing
@@ -677,8 +716,8 @@
                         if (accumulatedColor.a > 0.99) break;
                     } else {
                         // Foggy mode - original accumulation
-                        accumulatedColor.rgb += finalColor * opacity;
-                        accumulatedColor.a += opacity;
+                        accumulatedColor.rgb += finalColor * opacity * transparencyFactor;
+                        accumulatedColor.a += opacity * transparencyFactor;
                         
                         if (accumulatedColor.a > 0.95) break;
                     }
@@ -860,7 +899,9 @@
                     uSlicePosition: { value: 0.0 },
                     uTransparency: { value: parseFloat(transparencySlider.value) },
                     uTransparencyMode: { value: 0.0 },
-                    uEdgeColor: { value: new THREE.Color(0x00ffff) }
+                    uEdgeColor: { value: new THREE.Color(0x00ffff) },
+                    uEdgeTransparency: { value: parseFloat(edgeTransparencySlider.value) },
+                    uCellTransparency: { value: parseFloat(cellTransparencySlider.value) }
                 },
                 transparent: true,
                 side: THREE.BackSide

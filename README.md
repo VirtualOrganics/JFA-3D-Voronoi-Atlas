@@ -41,6 +41,9 @@ An interactive WebGL visualization of 3D Voronoi diagrams using the Jump Floodin
 - **Color Modes**:
   - Random Hue: Each cell gets a unique color
   - Single Color: All cells use the same color
+- **Independent Transparency Controls**:
+  - Edge Transparency: Control edge visibility separately
+  - Cell Transparency: Control cell interior transparency
 - **Edge Detection**: Smooth or sharp cell boundaries with adjustable thickness
 - **Volume Slicing**: Cut through the volume along X, Y, or Z axes
 
@@ -128,6 +131,14 @@ http://localhost:8000
 - Overall Transparency: 0.3-0.5
 - Ray Step Opacity: 0.01-0.02
 - Edge Color: White or bright colors
+- Show Lighting: Off
+- Edge Transparency: 0.8-1.0 (more opaque)
+- Cell Transparency: 0.2-0.4 (more transparent)
+
+### For Wireframe Effect
+- Edge Transparency: 1.0 (fully opaque)
+- Cell Transparency: 0.0-0.1 (nearly invisible)
+- Edge Color: Cyan or bright color
 - Show Lighting: Off
 
 ### For Performance
