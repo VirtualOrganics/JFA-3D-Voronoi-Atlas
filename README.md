@@ -24,6 +24,10 @@ An interactive WebGL visualization of 3D Voronoi diagrams using the Jump Floodin
 
 *Single color mode with cyan edges creating a unified aesthetic*
 
+<img src="screenshots/JFA4.png" alt="Three-Tier Transparency System" width="50%">
+
+*Three-tier system: transparent cell volumes, semi-transparent faces, and opaque edges*
+
 ## 📋 Features
 
 ### Core Functionality
