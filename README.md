@@ -41,9 +41,14 @@ An interactive WebGL visualization of 3D Voronoi diagrams using the Jump Floodin
 - **Color Modes**:
   - Random Hue: Each cell gets a unique color
   - Single Color: All cells use the same color
-- **Independent Transparency Controls**:
-  - Edge Transparency: Control edge visibility separately
-  - Cell Transparency: Control cell interior transparency
+- **Three-Tier Visual System**:
+  - Cell Volume: Interior of each Voronoi cell
+  - Cell Face: Boundaries between two cells
+  - Cell Edge: Lines where three or more cells meet
+- **Independent Controls for Each Tier**:
+  - Cell Volume: Color and transparency control
+  - Cell Face: Separate color and transparency (cyan by default)
+  - Cell Edge: Separate color and transparency (white by default)
 - **Edge Detection**: Smooth or sharp cell boundaries with adjustable thickness
 - **Volume Slicing**: Cut through the volume along X, Y, or Z axes
 
@@ -130,16 +135,26 @@ http://localhost:8000
 - Transparency Mode: Glass
 - Overall Transparency: 0.3-0.5
 - Ray Step Opacity: 0.01-0.02
-- Edge Color: White or bright colors
+- Cell Volume Transparency: 0.2-0.4
+- Cell Face Transparency: 0.6-0.8
+- Cell Edge Transparency: 0.9-1.0
+- Edge Color: White
+- Face Color: Cyan
 - Show Lighting: Off
-- Edge Transparency: 0.8-1.0 (more opaque)
-- Cell Transparency: 0.2-0.4 (more transparent)
 
 ### For Wireframe Effect
-- Edge Transparency: 1.0 (fully opaque)
-- Cell Transparency: 0.0-0.1 (nearly invisible)
-- Edge Color: Cyan or bright color
+- Cell Volume Transparency: 0.0-0.1 (nearly invisible)
+- Cell Face Transparency: 0.5 (semi-visible)
+- Cell Edge Transparency: 1.0 (fully opaque)
+- Edge Color: White or bright color
+- Face Color: Cyan or complementary color
 - Show Lighting: Off
+
+### For X-Ray Effect
+- Cell Volume Transparency: 0.3
+- Cell Face Transparency: 0.6
+- Cell Edge Transparency: 1.0
+- All three tiers visible with increasing opacity
 
 ### For Performance
 - Volume Resolution: 64³ or lower

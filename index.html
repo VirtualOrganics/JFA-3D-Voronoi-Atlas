@@ -136,8 +136,6 @@
     <div class="toggle-panel-btn" onclick="togglePanel()">Hide Panel</div>
     <div class="info-panel" id="controlPanel">
         <h3>🚀 3D JFA Volume (Atlas Method)</h3>
-        <p>Algorithm: <span class="highlight">3D Jump Flooding Algorithm</span></p>
-        <p>Mode: <span class="highlight">2D Atlas → 3D Volume</span></p>
         <p>Volume Size: <span class="highlight">64x64x64</span></p>
         <p>Atlas Size: <span class="highlight">512x512</span></p>
         <p>Seed Points: <span class="highlight" id="seedCount">25</span></p>
@@ -209,18 +207,29 @@
         </div>
         
         <div class="control">
-            <label for="edgeColor">Edge Color:</label>
-            <input type="color" id="edgeColor" value="#00ffff">
+            <label for="faceColor">Cell Face Color:</label>
+            <input type="color" id="faceColor" value="#00ffff">
         </div>
         
         <div class="control">
-            <label for="edgeTransparency">Edge Transparency:</label>
+            <label for="faceTransparency">Cell Face Transparency:</label>
+            <input type="range" id="faceTransparency" min="0.0" max="1.0" value="1.0" step="0.05">
+            <span id="faceTransparencyValue">1.00</span>
+        </div>
+        
+        <div class="control">
+            <label for="edgeColor">Cell Edge Color:</label>
+            <input type="color" id="edgeColor" value="#ffffff">
+        </div>
+        
+        <div class="control">
+            <label for="edgeTransparency">Cell Edge Transparency:</label>
             <input type="range" id="edgeTransparency" min="0.0" max="1.0" value="1.0" step="0.05">
             <span id="edgeTransparencyValue">1.00</span>
         </div>
         
         <div class="control">
-            <label for="cellTransparency">Cell Transparency:</label>
+            <label for="cellTransparency">Cell Volume Transparency:</label>
             <input type="range" id="cellTransparency" min="0.0" max="1.0" value="1.0" step="0.05">
             <span id="cellTransparencyValue">1.00</span>
         </div>
@@ -305,6 +314,9 @@
         const cellColorPicker = document.getElementById('cellColor');
         const singleColorControl = document.getElementById('singleColorControl');
         const transparencyModeSelect = document.getElementById('transparencyMode');
+        const faceColorPicker = document.getElementById('faceColor');
+        const faceTransparencySlider = document.getElementById('faceTransparency');
+        const faceTransparencyValue = document.getElementById('faceTransparencyValue');
         const edgeColorPicker = document.getElementById('edgeColor');
         const edgeTransparencySlider = document.getElementById('edgeTransparency');
         const edgeTransparencyValue = document.getElementById('edgeTransparencyValue');
@@ -408,6 +420,23 @@
         transparencyModeSelect.addEventListener('change', function() {
             if (!isInitialized || !volumeBox) return;
             volumeBox.material.uniforms.uTransparencyMode.value = this.value === 'glass' ? 1.0 : 0.0;
+        });
+        
+        faceColorPicker.addEventListener('input', function() {
+            if (!isInitialized) return;
+            const color = new THREE.Color(this.value);
+            if (volumeBox) {
+                volumeBox.material.uniforms.uFaceColor.value = color;
+            }
+        });
+        
+        faceTransparencySlider.addEventListener('input', function() {
+            if (!isInitialized || !volumeBox) return;
+            const transparency = parseFloat(this.value);
+            faceTransparencyValue.textContent = transparency.toFixed(2);
+            if (volumeBox) {
+                volumeBox.material.uniforms.uFaceTransparency.value = transparency;
+            }
         });
         
         edgeColorPicker.addEventListener('input', function() {
@@ -602,6 +631,8 @@
             uniform float uSlicePosition;
             uniform float uTransparency;
             uniform float uTransparencyMode;
+            uniform vec3 uFaceColor;
+            uniform float uFaceTransparency;
             uniform vec3 uEdgeColor;
             uniform float uEdgeTransparency;
             uniform float uCellTransparency;
@@ -671,20 +702,36 @@
                         continue;
                     }
                     
-                    // Sample neighbors for edge detection
+                    // Sample neighbors for face and edge detection
                     vec4 neighborX = sampleVolume(uvw + vec3(pixelSize.x, 0.0, 0.0));
                     vec4 neighborY = sampleVolume(uvw + vec3(0.0, pixelSize.y, 0.0));
                     vec4 neighborZ = sampleVolume(uvw + vec3(0.0, 0.0, pixelSize.z));
                     
-                    // Calculate the maximum difference between this voxel's ID and its neighbors'
-                    float max_diff = 0.0;
-                    if (neighborX.w > 0.5) max_diff = max(max_diff, abs(data.w - neighborX.w));
-                    if (neighborY.w > 0.5) max_diff = max(max_diff, abs(data.w - neighborY.w));
-                    if (neighborZ.w > 0.5) max_diff = max(max_diff, abs(data.w - neighborZ.w));
+                    // Sample diagonal neighbors for edge detection
+                    vec4 neighborXY = sampleVolume(uvw + vec3(pixelSize.x, pixelSize.y, 0.0));
+                    vec4 neighborXZ = sampleVolume(uvw + vec3(pixelSize.x, 0.0, pixelSize.z));
+                    vec4 neighborYZ = sampleVolume(uvw + vec3(0.0, pixelSize.y, pixelSize.z));
                     
-                    // Use smoothstep to create a soft edge
-                    // The edgeFactor will be 0.0 in the cell interior and smoothly go to 1.0 at the boundary
-                    float edgeFactor = smoothstep(0.0, 0.01 * uEdgeSmoothness, max_diff);
+                    // Detect faces (boundaries between two cells)
+                    float faceDiff = 0.0;
+                    if (neighborX.w > 0.5) faceDiff = max(faceDiff, abs(data.w - neighborX.w));
+                    if (neighborY.w > 0.5) faceDiff = max(faceDiff, abs(data.w - neighborY.w));
+                    if (neighborZ.w > 0.5) faceDiff = max(faceDiff, abs(data.w - neighborZ.w));
+                    
+                    // Count unique cell IDs to detect edges (where 3+ cells meet)
+                    float uniqueCount = 1.0; // Current cell
+                    if (neighborX.w > 0.5 && abs(neighborX.w - data.w) > 0.01) uniqueCount += 1.0;
+                    if (neighborY.w > 0.5 && abs(neighborY.w - data.w) > 0.01 && abs(neighborY.w - neighborX.w) > 0.01) uniqueCount += 1.0;
+                    if (neighborZ.w > 0.5 && abs(neighborZ.w - data.w) > 0.01 && abs(neighborZ.w - neighborX.w) > 0.01 && abs(neighborZ.w - neighborY.w) > 0.01) uniqueCount += 1.0;
+                    
+                    // Also check diagonals for edge detection
+                    if (neighborXY.w > 0.5 || neighborXZ.w > 0.5 || neighborYZ.w > 0.5) {
+                        uniqueCount += 0.5; // Boost edge detection when diagonals differ
+                    }
+                    
+                    // Use smoothstep to create smooth transitions
+                    float faceFactor = smoothstep(0.0, 0.01 * uEdgeSmoothness, faceDiff);
+                    float edgeFactor = smoothstep(2.5, 3.5, uniqueCount); // Edges where 3+ cells meet
                     
                     vec3 cellColor;
                     if (uColorMode < 0.5) {
@@ -694,12 +741,21 @@
                         cellColor = uCellColor;
                     }
                     
-                    // Mix between cell color and edge color based on the edgeFactor
-                    vec3 finalColor = mix(cellColor, uEdgeColor, edgeFactor);
-                    float opacity = (edgeFactor > 0.01) ? uStepOpacity * 5.0 : uStepOpacity;
+                    // Three-way mix: cell -> face -> edge
+                    vec3 finalColor = cellColor;
+                    float transparencyFactor = uCellTransparency;
                     
-                    // Apply separate transparency for edges and cells
-                    float transparencyFactor = mix(uCellTransparency, uEdgeTransparency, edgeFactor);
+                    if (edgeFactor > 0.01) {
+                        // Edge takes priority
+                        finalColor = mix(finalColor, uEdgeColor, edgeFactor);
+                        transparencyFactor = mix(transparencyFactor, uEdgeTransparency, edgeFactor);
+                    } else if (faceFactor > 0.01) {
+                        // Face
+                        finalColor = mix(finalColor, uFaceColor, faceFactor);
+                        transparencyFactor = mix(transparencyFactor, uFaceTransparency, faceFactor);
+                    }
+                    
+                    float opacity = (faceFactor > 0.01 || edgeFactor > 0.01) ? uStepOpacity * 5.0 : uStepOpacity;
                     
                     // Different blending modes based on transparency mode
                     if (uTransparencyMode > 0.5) {
@@ -899,7 +955,9 @@
                     uSlicePosition: { value: 0.0 },
                     uTransparency: { value: parseFloat(transparencySlider.value) },
                     uTransparencyMode: { value: 0.0 },
-                    uEdgeColor: { value: new THREE.Color(0x00ffff) },
+                    uFaceColor: { value: new THREE.Color(0x00ffff) },
+                    uFaceTransparency: { value: parseFloat(faceTransparencySlider.value) },
+                    uEdgeColor: { value: new THREE.Color(0xffffff) },
                     uEdgeTransparency: { value: parseFloat(edgeTransparencySlider.value) },
                     uCellTransparency: { value: parseFloat(cellTransparencySlider.value) }
                 },
